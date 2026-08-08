@@ -57,6 +57,40 @@ body {
     border-radius: 4px;
 }
 
+.page-submenu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 20px 30px 10px;
+}
+
+.submenu-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: white;
+    color: #0f172a;
+    text-decoration: none;
+    border-radius: 999px;
+    border: 1px solid #d8e2ec;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.submenu-link:hover {
+    background: #0f6cbd;
+    color: white;
+    border-color: #0f6cbd;
+}
+
+.submenu-link.active {
+    background: #0f6cbd;
+    color: white;
+    border-color: #0f6cbd;
+}
+
 .tile-link {
     text-decoration: none;
     color: inherit;

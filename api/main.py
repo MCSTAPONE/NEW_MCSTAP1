@@ -1,8 +1,5 @@
-
 import os
-import win32com.client
-from sap.sap_client import SAPClient
-from sap.sap_login import SAPLogin
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
@@ -10,38 +7,70 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from fastapi import Form
 from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.database import get_connection
 from api.routes.sap import router as sap_router
 from api.routes.pm import router as pm_router
+from api.routes.auth import router as auth_router
 
-from services.script_executor import ScriptExecutor
-
+# Load environment variables
+load_dotenv()
 
 app = FastAPI(
-    title="SAP Automation Platform"
+    title="SAP Automation Platform",
+    version="1.0.0",
+    description="SAP Automation Platform with JWT Authentication"
 )
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+# Include routers
+app.include_router(auth_router)
 app.include_router(sap_router)
 app.include_router(pm_router)
 
-templates = Jinja2Templates(directory="templates")
-app.mount(
-    "/static",
-    StaticFiles(directory="static"),
-    name="static"
-)
+# Mount static files only if they exist
+template_dir = "templates"
+static_dir = "static"
+allure_dir = "allure-report"
 
-app.mount(
-    "/allure",
-    StaticFiles(directory="allure-report"),
-    name="allure"
-)
+try:
+    if os.path.exists(template_dir):
+        templates = Jinja2Templates(directory=template_dir)
+    else:
+        templates = None
+except Exception:
+    templates = None
+
+if os.path.exists(static_dir):
+    app.mount(
+        "/static",
+        StaticFiles(directory=static_dir),
+        name="static"
+    )
+
+if os.path.exists(allure_dir):
+    app.mount(
+        "/allure",
+        StaticFiles(directory=allure_dir),
+        name="allure"
+    )
 
 
 @app.get("/dashboard")
 def dashboard(request: Request):
-
+    if templates is None:
+        return {"message": "Dashboard templates not available"}
+    
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",
@@ -49,8 +78,7 @@ def dashboard(request: Request):
             "title": "SAP Automation Platform"
         }
     )
-    
-    
+
 @app.get("/")
 def home():
 
@@ -623,8 +651,9 @@ def script_builder(request: Request):
   
 @app.get("/script-studio/start-recorder")
 def start_recorder():
-
     try:
+        from sap.sap_client import SAPClient
+        from sap.sap_login import SAPLogin
 
         client = SAPClient()
 
@@ -1031,9 +1060,9 @@ def run_script(
     request: Request,
     script_id: int
 ):
+    from services.script_executor import ScriptExecutor
 
     executor = ScriptExecutor()
-
     logs = executor.execute_script(
         script_id
     )
@@ -1046,6 +1075,24 @@ def run_script(
             "logs": logs
         }
     )
+
+
+@app.post("/api/script-studio/{script_id}/run")
+def run_script_api(
+    script_id: int
+):
+    from services.script_executor import ScriptExecutor
+
+    executor = ScriptExecutor()
+    logs = executor.execute_script(
+        script_id
+    )
+
+    return {
+        "status": "SUCCESS",
+        "script_id": script_id,
+        "logs": logs
+    }
 
     
 @app.get("/flow-library")
@@ -1529,12 +1576,8 @@ def delete_step(
         url=f"/flow-library/{flow_id}",
         status_code=303
     )
-    
-@app.get("/flow-library/{flow_id}/execute")
-def execute_flow(
-    request: Request,
-    flow_id: int
-):
+
+def build_flow_execution_result(flow_id: str):
 
     conn = get_connection()
 
@@ -1548,10 +1591,22 @@ def execute_flow(
         FROM flow_master
         WHERE flow_id = %s
         """,
-        (flow_id,)
+        (str(flow_id),)
     )
 
     flow = cur.fetchone()
+
+    if not flow:
+
+        cur.close()
+        conn.close()
+
+        return {
+            "status": "FAILED",
+            "message": f"Flow {flow_id} not found",
+            "flow": None,
+            "logs": []
+        }
 
     cur.execute(
         """
@@ -1565,7 +1620,7 @@ def execute_flow(
         WHERE fs.flow_id = %s
         ORDER BY fs.sequence_no
         """,
-        (flow_id,)
+        (str(flow_id),)
     )
 
     steps = cur.fetchall()
@@ -1618,11 +1673,48 @@ def execute_flow(
     cur.close()
     conn.close()
 
+    return {
+        "status": "SUCCESS",
+        "flow": {
+            "id": flow[0],
+            "name": flow[1]
+        },
+        "logs": logs
+    }
+
+
+@app.post("/api/flow-library/{flow_id}/execute")
+def execute_flow_api(
+    flow_id: str
+):
+
+    return build_flow_execution_result(flow_id)
+
+
+@app.get("/flow-library/{flow_id}/execute")
+def execute_flow(
+    request: Request,
+    flow_id: str
+):
+
+    result = build_flow_execution_result(flow_id)
+
+    flow = result["flow"]
+    logs = result["logs"]
+
+    flow_tuple = None
+
+    if flow:
+        flow_tuple = (
+            flow["id"],
+            flow["name"]
+        )
+
     return templates.TemplateResponse(
         request=request,
         name="flow_execution.html",
         context={
-            "flow": flow,
+            "flow": flow_tuple,
             "logs": logs
         }
     )

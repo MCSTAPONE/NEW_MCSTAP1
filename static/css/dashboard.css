@@ -158,6 +158,13 @@ body {
     background:#f5f7fa;
 }
 
+.menu-icon {
+    display: inline-block;
+    width: 18px;
+    margin-right: 10px;
+    text-align: center;
+}
+
 .dropdown:hover .dropdown-content{
     display:block;
 }

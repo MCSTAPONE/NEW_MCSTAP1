@@ -1,0 +1,74 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: mcstap-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://mcstap:mcstap_password@postgres:5432/mcstap
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: mcstap
+      POSTGRES_USER: mcstap
+      POSTGRES_PASSWORD: mcstap_password
+      JWT_SECRET_KEY: mcstap-super-secret-key-change-this-in-production
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRATION: 3600
+      CORS_ORIGINS: http://localhost:3000,http://localhost:8000,http://mcstap-frontend:3000
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      - ./api:/app/api
+      - ./services:/app/services
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend-next
+      dockerfile: Dockerfile
+    container_name: mcstap-frontend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://mcstap:mcstap_password@postgres:5432/mcstap
+      BACKEND_URL: http://mcstap-backend:8000
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-terra}
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: http://mcstap-backend:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcstap-postgres
+    environment:
+      POSTGRES_DB: mcstap
+      POSTGRES_USER: mcstap
+      POSTGRES_PASSWORD: mcstap_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcstap -d mcstap"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  postgres_data:

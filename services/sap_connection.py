@@ -1,9 +1,17 @@
 # -*- coding: utf-8 -*-
-from sap.sap_client import SAPClient
-from sap.sap_login import SAPLogin
+try:
+    from sap.sap_client import SAPClient
+    from sap.sap_login import SAPLogin
+    SAP_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    SAPClient = None
+    SAPLogin = None
+    SAP_AVAILABLE = False
 
 
 def get_sap_session():
+    if not SAP_AVAILABLE:
+        raise RuntimeError("SAP dependencies not available. Running on non-Windows system or missing win32com library.")
 
     try:
         # Step 1 - Attach to SAP
