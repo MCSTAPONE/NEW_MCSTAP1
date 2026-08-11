@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 
 import { menuLinks } from "@/data/app-data";
 import { getAccessToken, getStoredUser, logout } from "@/lib/auth";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { UserMenu } from "@/components/user-menu";
 
 type AppShellProps = {
   title: string;
@@ -21,10 +23,15 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<string>("");
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setUser(getStoredUser()?.username ?? "");
   }, []);
+
+  function toggleGroup(href: string) {
+    setOpenGroups((current) => ({ ...current, [href]: !current[href] }));
+  }
 
   async function handleLogout() {
     const token = getAccessToken();
@@ -51,15 +58,25 @@ export function AppShell({
                 {menuLinks.map((link) => {
                   if (link.children && link.children.length > 0) {
                     const isGroupActive = pathname.startsWith(link.href);
+                    const isOpen = openGroups[link.href] ?? isGroupActive;
 
                     return (
                       <div key={link.href} className="sidebar-group">
-                        <div className={`sidebar-link sidebar-group-label${isGroupActive ? " active" : ""}`}>
+                        <button
+                          type="button"
+                          className={`sidebar-link sidebar-group-label${isGroupActive ? " active" : ""}`}
+                          onClick={() => toggleGroup(link.href)}
+                          aria-expanded={isOpen}
+                        >
                           <span className="sidebar-icon" aria-hidden="true">
                             {link.icon}
                           </span>
                           <span>{link.label}</span>
-                        </div>
+                          <span className="sidebar-group-chevron" aria-hidden="true">
+                            {isOpen ? "▼" : "▶"}
+                          </span>
+                        </button>
+                        {isOpen ? (
                         <div className="sidebar-subnav">
                           {link.children.map((child) => {
                             const isChildActive =
@@ -79,6 +96,7 @@ export function AppShell({
                             );
                           })}
                         </div>
+                        ) : null}
                       </div>
                     );
                   }
@@ -110,13 +128,8 @@ export function AppShell({
                 <h2 className="topbar-title">{title}</h2>               
               </div>
               <div className="topbar-actions">
-                <span className="pill">
-                  <span aria-hidden="true">👤</span>
-                  <span>{user || "Authenticated user"}</span>
-                </span>
-                <button className="button-link button-logout" type="button" onClick={handleLogout}>
-                  Logout
-                </button>
+                <ThemeToggle />
+                <UserMenu username={user} onLogout={handleLogout} />
               </div>
             </header>
             <main className="content-stack">{children}</main>
