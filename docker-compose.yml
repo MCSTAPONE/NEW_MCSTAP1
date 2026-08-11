@@ -34,11 +34,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      backend:
-        condition: service_started
     environment:
       DATABASE_URL: postgresql://mcstap:mcstap_password@postgres:5432/mcstap
-      BACKEND_URL: http://mcstap-backend:8000
+      # host.docker.internal, not the mcstap-backend service name, so this
+      # container reaches whichever backend is actually listening on port
+      # 8000 on the Windows host — the Dockerized `backend` service (no
+      # real SAP GUI access) or run_app.ps1 running natively on Windows
+      # (real SAP GUI access via win32com/pyautogui). See run_app.ps1.
+      BACKEND_URL: http://host.docker.internal:8000
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-terra}
       NODE_ENV: production

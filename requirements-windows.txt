@@ -1,0 +1,9 @@
+# Windows-only dependencies for real SAP GUI execution.
+# Install alongside requirements.txt in a Windows-native Python venv:
+#   pip install -r requirements.txt -r requirements-windows.txt
+#
+# These do NOT install on Linux/macOS and must stay out of requirements.txt,
+# which is also used to build the Linux Docker backend image (that image
+# handles management/API/CRUD routes only and cannot drive SAP GUI).
+pywin32
+pyautogui
