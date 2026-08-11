@@ -29,6 +29,13 @@ type ExecutionResult = {
   logs: string[];
 };
 
+type RepositoryAsset = {
+  id: string;
+  name: string;
+  transaction: string;
+  status: string;
+};
+
 const toneByStatus = {
   Active: "success",
   Ready: "info",
@@ -44,6 +51,8 @@ export default function FlowDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [assets, setAssets] = useState<RepositoryAsset[]>([]);
+  const [selectedAssetId, setSelectedAssetId] = useState("");
   const [form, setForm] = useState({
     sequence: "",
     transaction: "",
@@ -71,6 +80,31 @@ export default function FlowDetailPage() {
     })();
   }, [flowId]);
 
+  useEffect(() => {
+    if (!flow?.module) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/repository/${flow.module}`, { cache: "no-store" });
+        const data = (await response.json()) as { items?: RepositoryAsset[] };
+        const active = (data.items ?? []).filter((asset) => asset.status === "Active");
+        setAssets(active);
+      } catch {
+        setAssets([]);
+      }
+    })();
+  }, [flow?.module]);
+
+  function handleAssetSelect(assetId: string) {
+    setSelectedAssetId(assetId);
+    const asset = assets.find((item) => item.id === assetId);
+    if (asset) {
+      setForm((current) => ({ ...current, transaction: asset.transaction }));
+    }
+  }
+
   async function handleAddStep(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -95,6 +129,7 @@ export default function FlowDetailPage() {
       const newStep: FlowStep = data.item;
       setSteps((current) => [...current, newStep].sort((left, right) => left.sequence - right.sequence));
       setForm({ sequence: "", transaction: "", description: "" });
+      setSelectedAssetId("");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to add step.");
     } finally {
@@ -201,12 +236,29 @@ export default function FlowDetailPage() {
               value={form.sequence}
               onChange={(event) => setForm((current) => ({ ...current, sequence: event.target.value }))}
             />
+            <select
+              className="field"
+              value={selectedAssetId}
+              onChange={(event) => handleAssetSelect(event.target.value)}
+            >
+              <option value="">
+                {assets.length ? "Select Repository Asset (optional)" : "No active repository assets for this module"}
+              </option>
+              {assets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name} ({asset.transaction})
+                </option>
+              ))}
+            </select>
             <input
               className="field"
               placeholder="Transaction Code"
               required
               value={form.transaction}
-              onChange={(event) => setForm((current) => ({ ...current, transaction: event.target.value }))}
+              onChange={(event) => {
+                setSelectedAssetId("");
+                setForm((current) => ({ ...current, transaction: event.target.value }));
+              }}
             />
             <textarea
               className="textarea"

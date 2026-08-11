@@ -3,27 +3,25 @@ import { NextResponse } from "next/server";
 const backendBaseUrl = process.env.BACKEND_URL ?? "http://host.docker.internal:8000";
 
 export async function POST(request: Request) {
-  const authHeader = request.headers.get("authorization");
-
   try {
-    const response = await fetch(`${backendBaseUrl}/api/pm/run`, {
+    const formData = await request.formData();
+
+    const response = await fetch(`${backendBaseUrl}/script-studio/analyze`, {
       method: "POST",
-      cache: "no-store",
-      headers: authHeader ? { authorization: authHeader } : undefined
+      body: formData,
+      cache: "no-store"
     });
 
     const data = (await response.json()) as Record<string, unknown>;
 
-    return NextResponse.json(data, {
-      status: response.status
-    });
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown backend error";
 
     return NextResponse.json(
       {
-        status: "FAILED",
-        error: `Could not reach backend PM execution endpoint: ${message}`
+        success: false,
+        message: `Could not reach backend analyze endpoint: ${message}`
       },
       { status: 502 }
     );

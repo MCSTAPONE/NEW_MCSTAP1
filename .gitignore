@@ -3,5 +3,5 @@ __pycache__/
 *.pyc
 allure-report/
 allure-results/
-reports/
+/reports/
 uploaded_files/

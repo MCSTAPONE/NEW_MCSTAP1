@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { StatusBadge } from "@/components/status-badge";
+import { getAccessToken } from "@/lib/auth";
 
 const flowSteps = [
   "IW31 Create Order",
@@ -33,8 +34,10 @@ export default function PmExecutionPage() {
     setResult(null);
 
     try {
+      const token = getAccessToken();
       const response = await fetch("/api/pm/run", {
-        method: "POST"
+        method: "POST",
+        headers: token ? { authorization: `Bearer ${token}` } : undefined
       });
 
       const data = (await response.json()) as RunResult;

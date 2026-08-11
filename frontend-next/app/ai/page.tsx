@@ -1,9 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { repositoryModules } from "@/data/app-data";
+
+const suggestedCommands = [
+  "What Should We Automate Next?",
+  "Top Automation Opportunities",
+  "Build Test Strategy For Purchase Order",
+  "Build Test Plan For Purchase Order",
+  "Show Process Dependencies For Purchase Order"
+];
 
 type AssistantMode = "script" | "flow" | "execution" | "coverage";
 
@@ -83,7 +91,52 @@ export default function AiAssistantPage() {
   const [aiError, setAiError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  const [isAsking, setIsAsking] = useState(false);
+  const [askError, setAskError] = useState("");
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/ai/history", { cache: "no-store" });
+        const data = (await response.json()) as { history?: string[] };
+        setHistory(data.history ?? []);
+      } catch {
+        setHistory([]);
+      }
+    })();
+  }, []);
+
   const result = useMemo(() => buildRecommendations(mode, module, transaction, notes), [mode, module, transaction, notes]);
+
+  async function handleAsk() {
+    if (!question.trim()) return;
+    setIsAsking(true);
+    setAskError("");
+
+    try {
+      const response = await fetch("/api/ai/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question })
+      });
+
+      const data = (await response.json()) as { answer?: string; history?: string[]; message?: string };
+
+      if (!response.ok || data.answer === undefined) {
+        throw new Error(data.message ?? "Failed to get an answer.");
+      }
+
+      setAnswer(data.answer);
+      setHistory(data.history ?? []);
+    } catch (askErr) {
+      setAskError(askErr instanceof Error ? askErr.message : "Failed to get an answer.");
+    } finally {
+      setIsAsking(false);
+    }
+  }
 
   async function handleGenerate() {
     setIsGenerating(true);
@@ -125,6 +178,79 @@ export default function AiAssistantPage() {
       title="AI Assistant"
       subtitle="A guided planning workspace for turning SAP testing ideas into scripts, flows, execution runs, and coverage actions inside the current app."
     >
+      <section className="split-card">
+        <div className="card panel">
+          <div className="section-title">
+            <div>
+              <h2>🕒 Recent Commands</h2>
+              <p>Click a past command to reuse it.</p>
+            </div>
+          </div>
+          <div className="content-stack">
+            {history.length ? (
+              history.map((item, index) => (
+                <div
+                  key={`${item}-${index}`}
+                  className="risk-item"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setQuestion(item)}
+                >
+                  {item}
+                </div>
+              ))
+            ) : (
+              <p className="muted">No history available.</p>
+            )}
+          </div>
+          <div className="section-title" style={{ marginTop: 16 }}>
+            <div>
+              <h3>⭐ Suggested Commands</h3>
+            </div>
+          </div>
+          <div className="content-stack">
+            {suggestedCommands.map((command) => (
+              <div key={command} className="risk-item" style={{ cursor: "pointer" }} onClick={() => setQuestion(command)}>
+                {command}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card panel">
+          <div className="section-title">
+            <div>
+              <h2>MC STAP AI Assistant</h2>
+              <p>Ask about Repository Assets, Business Flows, Test Cases, Coverage Analysis, Test Plans, and Test Strategies.</p>
+            </div>
+          </div>
+          <div className="content-stack">
+            <textarea
+              className="textarea"
+              rows={6}
+              placeholder="Example: Show all CO repository assets"
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void handleAsk();
+                }
+              }}
+            />
+            <button className="button-link" type="button" onClick={() => void handleAsk()} disabled={isAsking}>
+              {isAsking ? "Asking..." : "Ask AI"}
+            </button>
+            {askError ? <div className="login-error">{askError}</div> : null}
+            {answer ? (
+              <div className="card panel">
+                <h3>AI Response</h3>
+                <pre className="code-block">{answer}</pre>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
       <section className="split-card">
         <section className="card panel">
           <div className="section-title">

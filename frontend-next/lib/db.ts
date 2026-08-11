@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+
 import { Pool } from "pg";
 
 declare global {
@@ -128,6 +131,45 @@ export async function ensureSchema() {
         INSERT INTO license_status (id) VALUES (1)
         ON CONFLICT (id) DO NOTHING
       `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS sap_process_library (
+          process_id SERIAL PRIMARY KEY,
+          process_name VARCHAR(255) NOT NULL,
+          module VARCHAR(40) NOT NULL,
+          flow_type VARCHAR(40),
+          description TEXT,
+          status VARCHAR(40) NOT NULL DEFAULT 'Active'
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS sap_process_steps (
+          process_step_id SERIAL PRIMARY KEY,
+          process_id INTEGER NOT NULL REFERENCES sap_process_library(process_id) ON DELETE CASCADE,
+          sequence_no INTEGER NOT NULL,
+          transaction_code VARCHAR(40) NOT NULL,
+          step_name VARCHAR(255),
+          description TEXT
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ai_command_history (
+          id SERIAL PRIMARY KEY,
+          command_text TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      const processLibraryCount = await pool.query(`SELECT COUNT(*)::int AS count FROM sap_process_library`);
+      if (Number(processLibraryCount.rows[0]?.count ?? 0) === 0) {
+        const seedPath = path.join(process.cwd(), "db", "sap_process_seed.sql");
+        if (fs.existsSync(seedPath)) {
+          const seedSql = fs.readFileSync(seedPath, "utf-8");
+          await pool.query(seedSql);
+        }
+      }
     })().catch((error) => {
       global.__mcstapSchemaReady = undefined;
       throw error;
